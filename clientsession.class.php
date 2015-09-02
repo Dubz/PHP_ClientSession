@@ -22,6 +22,14 @@ class ClientSession
 		$this->proxy_pass = $pass;
 		$this->proxy_type = $type;
 	}
+	public function get_cookie($key)
+	{
+		if(key_exists($key, $this->cookies))
+			return $this->cookies[$key];
+		if(key_exists($key, $this->user_cookies))
+			return $this->user_cookies[$key];
+		return null;
+	}
 	public function set_cookie($key, $value)
 	{
 		return $this->user_cookies[$key] = $value;
@@ -82,7 +90,7 @@ class ClientSession
 	public function parse_cookies($cookies)
 	{
 		$ret = array();
-		foreach($cookies as $cookie)
+		foreach((array)$cookies as $cookie)
 		{
 			$res = $this->parse_cookie($cookie);
 			$ret[$res['key']] = $res['value'];
@@ -91,7 +99,7 @@ class ClientSession
 	}
 	public function parse_cookie($cookie_str)
 	{
-		preg_match('/([^;,\s=]+)=([^;,\s]+);/', $cookie_str, $cookie);
+		preg_match('/([^;,\s=]+)=([^;,\s]+);?/', $cookie_str, $cookie);
 		array_map('trim', $cookie);
 		return array('key' => $cookie[1], 'value' => $cookie[2]);
 	}
@@ -181,7 +189,7 @@ class ClientSession
 			);
 		}
 	}
-	 function generate_cookie_header()
+	private function generate_cookie_header()
 	{
 		$cookies = array_merge($this->cookies, $this->user_cookies);
 		return implode(' ', array_map(function($k, $v) {
