@@ -4,6 +4,7 @@ class ClientSession
 	public $user_cookies = array();
 	public $user_headers = array();
 
+	public $curlopt = array();
 	public $proxy_ip   = false;
 	public $proxy_port = false;
 	public $proxy_pass = false;
@@ -21,6 +22,17 @@ class ClientSession
 		$this->proxy_port = $port;
 		$this->proxy_pass = $pass;
 		$this->proxy_type = $type;
+	}
+	public function get_curlopt($key)
+	{
+		if(array_key_exists($key, $this->curlopt))
+			return $this->curlopt[$key];
+		else
+			return false;
+	}
+	public function set_curlopt($key, $value)
+	{
+		$this->curlopt[$key] = $value;
 	}
 	public function get_cookie($key)
 	{
@@ -47,6 +59,14 @@ class ClientSession
 			return true;
 		}
 		return false;
+	}
+	public function get_header($key)
+	{
+		if(key_exists($key, $this->headers))
+			return $this->headers[$key];
+		if(key_exists($key, $this->user_headers))
+			return $this->user_headers[$key];
+		return null;
 	}
 	public function set_header($key, $value)
 	{
@@ -156,29 +176,33 @@ class ClientSession
 					curl_setopt($curl, CURLOPT_CUSTOMREQUEST, $method);
 			}
 			#Lets merge the headers with some defaults
-			$headers = array_merge(array('Content-Type' => 'application/x-www-form-urlencoded'), $this->headers, $this->user_headers, array('Cookie' => $this->generate_cookie_header()));
+			$headers = array_merge(array('Content-Type' => 'application/x-www-form-urlencoded'), $this->user_headers, array('Cookie' => $this->generate_cookie_header()));
 			#Change the array to add the key to the values and set
 			$headers = array_map(function($v, $k) { return ($v ? $k.': '.$v : ''); }, $headers, array_keys($headers));
 			curl_setopt($curl, CURLOPT_HTTPHEADER, $headers);
 			curl_setopt($curl, CURLINFO_HEADER_OUT, true);
+			foreach($this->curlopt as $opt => $val)
+			{
+				curl_setopt($curl, $opt, $val);
+			}
 			$html = curl_exec($curl);
 			curl_close($curl);
 			$content = explode("\r\n\r\n", $html, 3);
 			if(count($content) == 2)
 			{
-				$headers = $this->parse_headers($content[0]);
+				$this->headers = $this->parse_headers(preg_replace('/^.*\n/', '', $content[0]));
 				$content = $content[1];
 			}
 			else
 			{
-				$headers = $this->parse_headers(implode("\r\n\r\n", array($content[0], $content[1])));
+				$this->headers = $this->parse_headers(preg_replace('/^.*\n/', '', implode("\r\n\r\n", array($content[0], $content[1]))));
 				$content = $content[2];
 			}
-			if(key_exists('Set-Cookie', $headers))
-				$this->cookies = array_merge($this->cookies, $this->parse_cookies($headers['Set-Cookie']));
+			if(key_exists('Set-Cookie', $this->headers))
+				$this->cookies = array_merge($this->cookies, $this->parse_cookies($this->headers['Set-Cookie']));
 			return array(
 				"status" => "ok",
-				"headers" => $headers,
+				"headers" => $this->headers,
 				"content" => $content,
 			);
 		}
