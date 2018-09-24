@@ -129,17 +129,14 @@ class ClientSession
 	 *
 	 * Posts data to a website using the curl method
 	 *
-	 * @param $url The URL to post to
-	 * @param $data The array of data to be posted
-	 * @param $headers Additional headers to be sent
-	 * @param $proxy The proxy address to be used
-	 * @param $proxyport Port to connect to proxy
- 	 * @param $proxywd Password to access proxy
-	 * @param $proxtype Type of proxy connection
+	 * @param $method The type of request to send (GET, POST, etc.)
+	 * @param $url The URL to send the request
+	 * @param $data The array of data to be sent
+	 * @param $follow_redirects Whether or not the client should follow location headers
 	 * @param $timeout Time to wait for proxy connection
 	 * @return An array of strings containing the status and content (html)
 	 */
-	public function request($method, $url, $data = false, $timeout = 10)
+	public function request($method, $url, $data = false, $follow_redirects = false, $timeout = 10)
 	{
 		$method = strtoupper($method);
 		$curl = curl_init();
@@ -200,6 +197,11 @@ class ClientSession
 			}
 			if(key_exists('Set-Cookie', $this->headers))
 				$this->cookies = array_merge($this->cookies, $this->parse_cookies($this->headers['Set-Cookie']));
+			# Now that we are done processing, we can check for location headers and send requests (if the user chose to)
+			if($follow_redirects && array_key_exists('Location', $this->headers))
+			{
+				return $this->request('GET', $this->headers['Location'], false, true);
+			}
 			return array(
 				"status" => "ok",
 				"headers" => $this->headers,
