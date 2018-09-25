@@ -215,6 +215,84 @@ class ClientSession
 			);
 		}
 	}
+	/*
+	 * @credit Dubz
+	 *
+	 * Fetch all the forms from given HTML or URL
+	 * Tis will use the client session, so any cookie headers sent will be kept
+	 * Useful for easily bypassing any CSRF tokens
+	 *
+	 * This function is still under beta testing.
+	 * It is still prone to issues and does not fetch 100%
+	 *
+	 * Select tags are not fetched (input tags only)
+	 * Does not handle tags that are generated on the client side (via JS, etc.)
+	 * Please add any necessary data as needed after calling this function
+	 *
+	 * @param $data Either a URL to request, or HTML already fetched
+	 * @return An array of forms containing the action, method, and input tags
+	 */
+	public function rip_forms($data)
+	{
+		# Is this HTML? Simple check (since URLs shouldn't have a < in it, or a >)
+		if(stripos($data, '<') !== false)
+			$html = $data;
+		else
+		{
+			$res = $this->request('GET', $data, false, true);
+			// var_export($res);
+			$html = $res['content'];
+		}
+		$forms = array();
+		// print PHP_EOL.PHP_EOL."Fetching form...".PHP_EOL.PHP_EOL.PHP_EOL;
+		preg_match_all('/<form((?:\s+\w+(?:=([\"|\'])[\w\W]*?\2)?)*?)\s*>([\w\W]*?)<\/form>/i', $html, $form, PREG_SET_ORDER);
+		// var_export($form);
+		# Get all the forms!
+		foreach($form as $i => $f)
+		{
+			# Where you goin?!
+			// print PHP_EOL.PHP_EOL."Fetching form attributes...".PHP_EOL.PHP_EOL.PHP_EOL;
+			preg_match_all('/\s+(\w+)(?:=([\"|\'])([\w\W]*?)\2)?/', $f[1], $attributes, PREG_SET_ORDER);
+			// var_export($attributes);
+			foreach($attributes as $i => $attrib)
+			{
+				$v = $attrib[3];
+				switch($attrib[1])
+				{
+					case 'action':
+						$action = html_entity_decode($v, ENT_HTML5);
+					break;
+					case 'method':
+						$method = $v;
+					break;
+				}
+			}
+			// print PHP_EOL.PHP_EOL."Data would be sent to $action via $method method.".PHP_EOL.PHP_EOL.PHP_EOL;
+			# Lets grab the input tags to submit the necessary data
+			// print PHP_EOL.PHP_EOL."Fetching input tags...".PHP_EOL.PHP_EOL.PHP_EOL;
+			preg_match_all('/<input((?:\s+\w+(?:=([\"|\'])[\w\W]*?\2)?)*?)\s*\/?\s*>/', $f[3], $input, PREG_SET_ORDER);
+			// var_export($input);
+			// continue;
+			$data = array();
+			foreach($input as $i => $inp)
+			{
+				// print PHP_EOL.PHP_EOL."Fetching input tag attributes...".PHP_EOL.PHP_EOL.PHP_EOL;
+				preg_match_all('/\s+(\w+)(?:=([\"|\'])([\w\W]*?)\2)?/', $inp[1], $attributes, PREG_SET_ORDER);
+				// var_export($attributes);
+				$data[$i] = array();
+				foreach($attributes as $attrib)
+				{
+					if(count($attrib) == 2)
+						$data[$i][$attrib[1]] = NULL;
+					if(count($attrib) == 4)
+						$data[$i][$attrib[1]] = $attrib[3];
+				}
+			}
+			$forms[] = array('action' => $action, 'method' => $method, 'input' => $data);
+		}
+		// var_export($forms);
+		return $forms;
+	}
 	private function generate_cookie_header()
 	{
 		$cookies = array_merge($this->cookies, $this->user_cookies);
